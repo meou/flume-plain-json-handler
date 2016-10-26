@@ -22,6 +22,9 @@ import com.google.gson.JsonParseException;
 import java.io.BufferedReader;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Enumeration;
+import java.util.Map;
+import java.util.HashMap;
 import javax.servlet.http.HttpServletRequest;
 import org.apache.flume.Context;
 import org.apache.flume.Event;
@@ -47,22 +50,30 @@ public class PlainJSONHandler implements HTTPSourceHandler {
   @Override
   public List<Event> getEvents(HttpServletRequest request) throws Exception {
 
+    // LOG.info("getRequestURI=" + request.getRequestURI());
+    Map<String,String> eventHeaders = new HashMap<>();
+    Enumeration requestHeaders = request.getHeaderNames();
+    while (requestHeaders.hasMoreElements()) {
+      String header = (String) requestHeaders.nextElement();
+      eventHeaders.put(header, request.getHeader(header));
+    }
+
     BufferedReader reader = request.getReader();
-    List<Event> eventList = new ArrayList<Event>(0);
-    String line = null;
-    while ((line = reader.readLine()) != null) {
+    List<Event> eventList = new ArrayList<Event>(1);
+    String line = reader.readLine();
+    if (line != null) {
       try {
         parser.parse(line);
       } catch (JsonParseException ex) {
-        throw new HTTPBadRequestException("HTTP body line # " 
-          + Integer.toString(eventList.size()) 
-          + " is not a valid JSON object.", ex);
+        throw new HTTPBadRequestException(
+          "HTTP body is not a valid JSON object.", ex);
       }
       Event event = new JSONEvent();
       event.setBody(line.getBytes());
+      eventHeaders.put("Content-Length", Integer.toString(line.length()));
+      event.setHeaders(eventHeaders);
       eventList.add(event);
-    }
-    if (eventList.isEmpty()) {
+    } else {
       LOG.debug("No event is generated.");
     }
     return eventList;
@@ -70,5 +81,6 @@ public class PlainJSONHandler implements HTTPSourceHandler {
 
   @Override
   public void configure(Context context) {
+
   }
 }
