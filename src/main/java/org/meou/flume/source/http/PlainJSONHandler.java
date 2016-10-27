@@ -20,11 +20,14 @@ package org.meou.flume.source.http;
 import com.google.gson.JsonParser;
 import com.google.gson.JsonParseException;
 import java.io.BufferedReader;
+import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Enumeration;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.Set;
+import java.util.HashSet;
 import javax.servlet.http.HttpServletRequest;
 import org.apache.flume.Context;
 import org.apache.flume.Event;
@@ -43,19 +46,22 @@ import org.slf4j.LoggerFactory;
 
 public class PlainJSONHandler implements HTTPSourceHandler {
   
+  private static final String FORWARD_HEADERS = "forwardHeaders";
   private static final Logger LOG = 
     LoggerFactory.getLogger(PlainJSONHandler.class);
   private static JsonParser parser = new JsonParser();
+  private static Set<String> forwardHeaders = new HashSet<>();
 
   @Override
   public List<Event> getEvents(HttpServletRequest request) throws Exception {
 
-    // LOG.info("getRequestURI=" + request.getRequestURI());
     Map<String,String> eventHeaders = new HashMap<>();
     Enumeration requestHeaders = request.getHeaderNames();
     while (requestHeaders.hasMoreElements()) {
       String header = (String) requestHeaders.nextElement();
-      eventHeaders.put(header, request.getHeader(header));
+      if (forwardHeaders.contains(header)) {
+        eventHeaders.put(header, request.getHeader(header));
+      }
     }
 
     BufferedReader reader = request.getReader();
@@ -70,7 +76,6 @@ public class PlainJSONHandler implements HTTPSourceHandler {
       }
       Event event = new JSONEvent();
       event.setBody(line.getBytes());
-      eventHeaders.put("Content-Length", Integer.toString(line.length()));
       event.setHeaders(eventHeaders);
       eventList.add(event);
     } else {
@@ -81,6 +86,13 @@ public class PlainJSONHandler implements HTTPSourceHandler {
 
   @Override
   public void configure(Context context) {
-
+    String confForwardHeaders = context.getString(FORWARD_HEADERS);
+    if (confForwardHeaders != null) {
+      if (forwardHeaders.addAll(Arrays.asList(confForwardHeaders.split(",")))) {
+        LOG.debug("forwardHeaders=" + forwardHeaders);
+      } else {
+        LOG.error("error to get forward headers from " + confForwardHeaders);
+      }
+    }
   }
 }
