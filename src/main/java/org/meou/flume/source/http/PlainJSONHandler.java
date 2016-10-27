@@ -93,6 +93,8 @@ public class PlainJSONHandler implements HTTPSourceHandler {
       } else {
         LOG.error("error to get forward headers from " + confForwardHeaders);
       }
+    } else {
+      LOG.debug("no forwardHeaders");
     }
   }
 }
